@@ -43,3 +43,42 @@ trainer.train()
 #Saving the fine tuned model
 model.save_pretrained("./t5_paraphraser")
 tokenizer.save_pretrained("./t5_paraphraser")
+
+#Validation
+#Import necessary libraries for validation
+from transformers import T5Tokenizer, T5ForConditionalGeneration
+from sentence_transformers import SentenceTransformer, util
+
+#Step3.1:Load the Fine-tuned T5 model from preprocessing
+t5_model = "./t5_paraphraser"
+tokenizer = T5Tokenizer.from_pretrained(t5_model)
+model = T5ForConditionalGeneration.from_pretrained(t5_model)
+
+#Step3.2:Loads the Sentence-BERT[Bidirectional Encoder Representations from Transformers] Model
+sbert_model = SentenceTransformer("all-MiniLM-L6-V2") #"all-MiniLM-L6-V2" is the pretrained sentence BERT Model
+
+#Step3.3:Build the function for paraphrasing text
+def paraphrase(input_text):
+    inputs = tokenizer("paraphrase:"+input_text,return_tensors = 'pt')
+    outputs = model.generate(inputs['input_ids'], max_length=200, num_beams = 8,length_penalty = 2.0, early_stopping = True)
+    paraphrased_text = tokenizer.decode(outputs[0], skip_special_characters = True)
+    return paraphrased_text
+
+#Step3.4:Build the function to validate simantic similarity
+def validate_simantic_similarity(original,overwritten):
+    embeddings = sbert_model.encode([original,overwritten],convert_to_tensors=True)
+    simantic_similarity = util.cos_sim(embeddings[0],embeddings[1])
+    return simantic_similarity.item()
+
+#Step3.5:Integrate both the functions into one
+def paraphrase_similarity(input_text):
+    paraphrased_text = paraphrase(input_text)
+    similarity_score = validate_simantic_similarity(input_text,paraphrased_text)
+    return paraphrased_text, similarity_score
+
+#Usage
+original_text = "Explain AI"
+paraphrased_text,similarity_score = paraphrase_similarity(original_text)
+print(f"Original:",{original_text})
+print(f"Paraphrased_text:",{paraphrased_text})
+print(f"Similarity_score:",{similarity_score})
